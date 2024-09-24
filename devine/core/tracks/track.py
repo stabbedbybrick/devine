@@ -19,7 +19,7 @@ from requests import Session
 from devine.core import binaries
 from devine.core.config import config
 from devine.core.constants import DOWNLOAD_CANCELLED, DOWNLOAD_LICENCE_ONLY
-from devine.core.downloaders import aria2c, curl_impersonate, requests
+from devine.core.downloaders import aria2c, curl_impersonate, requests, n_m3u8dl_re
 from devine.core.drm import DRM_T, Widevine
 from devine.core.events import events
 from devine.core.utilities import get_boxes, try_ensure_utf8
@@ -81,7 +81,8 @@ class Track:
             downloader = {
                 "aria2c": aria2c,
                 "curl_impersonate": curl_impersonate,
-                "requests": requests
+                "requests": requests,
+                "n_m3u8dl_re": n_m3u8dl_re,
             }[config.downloader]
 
         self.path: Optional[Path] = None
@@ -195,6 +196,9 @@ class Track:
         save_path = config.directories.temp / f"{track_type}_{self.id}.mp4"
         if track_type == "Subtitle":
             save_path = save_path.with_suffix(f".{self.codec.extension}")
+            # No need to use n_m3u8dl_re for subtitles, let's switch to requests
+            if self.downloader.__name__ == "n_m3u8dl_re":
+                self.downloader = requests
 
         if self.descriptor != self.Descriptor.URL:
             save_dir = save_path.with_name(save_path.name + "_segments")
@@ -271,6 +275,10 @@ class Track:
 
                     if DOWNLOAD_LICENCE_ONLY.is_set():
                         progress(downloaded="[yellow]SKIPPED")
+                    elif track_type != "Subtitle" and self.downloader.__name__ == "n_m3u8dl_re":
+                        progress(downloaded="[red]FAILED")
+                        error = f"[N_m3u8DL-RE]: {self.descriptor} is currently not supported"
+                        raise ValueError(error)
                     else:
                         for status_update in self.downloader(
                             urls=self.url,
