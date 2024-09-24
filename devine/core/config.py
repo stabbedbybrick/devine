@@ -39,6 +39,7 @@ class Config:
     def __init__(self, **kwargs: Any):
         self.dl: dict = kwargs.get("dl") or {}
         self.aria2c: dict = kwargs.get("aria2c") or {}
+        self.n_m3u8dl_re: dict = kwargs.get("n_m3u8dl_re") or {}
         self.cdm: dict = kwargs.get("cdm") or {}
         self.chapter_fallback_name: str = kwargs.get("chapter_fallback_name") or ""
         self.curl_impersonate: dict = kwargs.get("curl_impersonate") or {}
