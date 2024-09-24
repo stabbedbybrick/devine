@@ -474,23 +474,28 @@ class DASH:
             downloader = requests_downloader
             log.warning("Falling back to the requests downloader as aria2(c) doesn't support the Range header")
 
-        for status_update in downloader(
+        downloader_args = dict(
             urls=[
-                {
-                    "url": url,
-                    "headers": {
-                        "Range": f"bytes={bytes_range}"
-                    } if bytes_range else {}
-                }
-                for url, bytes_range in segments
-            ],
-            output_dir=save_dir,
-            filename="{i:0%d}.mp4" % (len(str(len(segments)))),
-            headers=session.headers,
-            cookies=session.cookies,
-            proxy=proxy,
-            max_workers=max_workers
-        ):
+                    {
+                        "url": url,
+                        "headers": {
+                            "Range": f"bytes={bytes_range}"
+                        } if bytes_range else {}
+                    }
+                    for url, bytes_range in segments
+                ],
+                output_dir=save_dir,
+                filename="{i:0%d}.mp4" % (len(str(len(segments)))),
+                headers=session.headers,
+                cookies=session.cookies,
+                proxy=proxy,
+                max_workers=max_workers
+        )
+
+        if downloader.__name__ == "n_m3u8dl_re":
+            downloader_args.update({"filename": track.id, "track": track})
+
+        for status_update in downloader(**downloader_args):
             file_downloaded = status_update.get("file_downloaded")
             if file_downloaded:
                 events.emit(events.Types.SEGMENT_DOWNLOADED, track=track, segment=file_downloaded)
