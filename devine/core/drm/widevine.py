@@ -269,6 +269,8 @@ class Widevine:
                     stream_skipped = True
                 if ":INFO:" in line:
                     continue
+                if "I0" or "W0" in line:
+                    continue
                 if ":ERROR:" in line:
                     had_error = True
                 if "Insufficient bits in bitstream for given AVC profile" in line:
