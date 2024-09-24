@@ -551,6 +551,10 @@ class dl:
                 ]
                 if isinstance(e, EnvironmentError):
                     error_messages.append(f"   {e}")
+                if isinstance(e, ValueError):
+                    error_messages.append(f"   {e}")
+                if isinstance(e, (AttributeError, TypeError)):
+                    console.print_exception()
                 else:
                     error_messages.append("   An unexpected error occurred in one of the download workers.",)
                     if hasattr(e, "returncode"):
