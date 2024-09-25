@@ -12,7 +12,7 @@ from devine.core.console import console
 from devine.core.constants import DOWNLOAD_CANCELLED
 
 AUDIO_CODEC_MAP = {"AAC": "mp4a", "AC3": "ac-3", "EC3": "ec-3"}
-VIDEO_CODEC_MAP = {"AVC": "avc", "HEVC": "hvc", "DV": "dvh"}
+VIDEO_CODEC_MAP = {"AVC": "avc", "HEVC": "hvc", "DV": "dvh", "HLG": "hev"}
 
 def track_selection(track: object) -> list[str]:
     manifest = track.data["dash"]["manifest"]
@@ -51,9 +51,13 @@ def track_selection(track: object) -> list[str]:
         return audio_selection
 
     if track_type == "Video":
-        # N_m3u8DL-RE lists Dolby Vision as a codec (dvhe) while Devine use range to specify it
-        if codec == "HEVC" and range == "DV":
-            codec = "DV"
+        # adjust codec based on range
+        codec_adjustments = {
+            ("HEVC", "DV"): "DV",
+            ("HEVC", "HLG"): "HLG"
+        }
+        codec = codec_adjustments.get((codec, range), codec)
+
         codecs = VIDEO_CODEC_MAP.get(codec)
         bandwidth = f"bwMin={bitrate}:bwMax={bitrate + 5}"
         video_selection = ["-sv", f"res={width}*:codecs={codecs}:{bandwidth}"]
