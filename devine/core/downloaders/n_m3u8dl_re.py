@@ -2,7 +2,9 @@ import logging
 import os
 import re
 import subprocess
+import warnings
 from http.cookiejar import CookieJar
+from itertools import chain
 from pathlib import Path
 from typing import Any, Generator, MutableMapping, Optional, Union
 
@@ -11,11 +13,15 @@ from devine.core.config import config
 from devine.core.console import console
 from devine.core.constants import DOWNLOAD_CANCELLED
 
+# Ignore FutureWarnings
+warnings.simplefilter(action="ignore", category=FutureWarning)
+
 AUDIO_CODEC_MAP = {"AAC": "mp4a", "AC3": "ac-3", "EC3": "ec-3"}
 VIDEO_CODEC_MAP = {"AVC": "avc", "HEVC": "hvc", "DV": "dvh", "HLG": "hev"}
 
 def track_selection(track: object) -> list[str]:
-    manifest = track.data["dash"]["manifest"]
+    adaptation_set = track.data["dash"]["adaptation_set"]
+    representation = track.data["dash"]["representation"]
 
     track_type = track.__class__.__name__
     codec = track.codec.name
@@ -23,32 +29,26 @@ def track_selection(track: object) -> list[str]:
     language = track.language
     width = track.width if track_type == "Video" else None
     range = track.range.name if track_type == "Video" else None
-    # drm = track.drm[0] if track.drm else None
-    # height = track.height if track_type == "Video" else None
-
-    # TODO: is there a better way to determine lang and track_id?
-    audio_ids = []
-    lang = None
-    adaptation_sets = manifest.xpath("//AdaptationSet")
-    for adaptation_set in adaptation_sets:
-        if adaptation_set.get("mimeType") == "audio/mp4":
-            lang = adaptation_set.get("lang")
-            representations = adaptation_set.findall(".//Representation")
-            for representation in representations:
-                track_id = representation.get("id")
-                if track_id:
-                    audio_ids.append(track_id)
 
     if track_type == "Audio":
         codecs = AUDIO_CODEC_MAP.get(codec)
+        langs = adaptation_set.findall("lang") + representation.findall("lang")
+        track_ids = list(set(
+            v for x in chain(adaptation_set, representation)
+            for v in (x.get("audioTrackId"), x.get("id"))
+            if v is not None
+        ))
+        roles = adaptation_set.findall("Role") + representation.findall("Role")
+        role = ":role=main" if next((i for i in roles if i.get("value").lower() == "main"), None) else ""
         bandwidth = f"bwMin={bitrate}:bwMax={bitrate + 5}"
-        if lang:
-            audio_selection = ["-sa", f"lang={language}:codecs={codecs}:{bandwidth}"]
-        elif not lang and len(audio_ids) == 1:
-            audio_selection = ["-sa", f"id={audio_ids[0]}"]
+
+        if langs:
+            track_selection = ["-sa", f"lang={language}:codecs={codecs}:{bandwidth}{role}"]
+        elif len(track_ids) == 1:
+            track_selection = ["-sa", f"id={track_ids[0]}"]
         else:
-            audio_selection = ["-sa", "for=best"]
-        return audio_selection
+            track_selection = ["-sa", f"for=best{role}"]
+        return track_selection
 
     if track_type == "Video":
         # adjust codec based on range
@@ -57,11 +57,11 @@ def track_selection(track: object) -> list[str]:
             ("HEVC", "HLG"): "HLG"
         }
         codec = codec_adjustments.get((codec, range), codec)
-
         codecs = VIDEO_CODEC_MAP.get(codec)
+
         bandwidth = f"bwMin={bitrate}:bwMax={bitrate + 5}"
-        video_selection = ["-sv", f"res={width}*:codecs={codecs}:{bandwidth}"]
-        return video_selection
+        track_selection = ["-sv", f"res={width}*:codecs={codecs}:{bandwidth}"]
+        return track_selection
 
 def download(
     urls: Union[str, dict[str, Any], list[str], list[dict[str, Any]]],
