@@ -134,7 +134,7 @@ def download(
 
     # TODO: improve this nonsense
     percent_re = re.compile(r"(\d+\.\d+%)")
-    speed_re = re.compile(r"(\d+\.\d+MBps)")
+    speed_re = re.compile(r"(?<!/)(\d+\.\d+MB)(?!.*\/)")
     warn = re.compile(r"(WARN : Response.*)")
     error = re.compile(r"(ERROR.*)")
     size_patterns = [
@@ -164,7 +164,7 @@ def download(
                     )
 
                     if speed:
-                        yield dict(downloaded=f"{speed.group(1)} {size}")
+                        yield dict(downloaded=f"{speed.group(1)}ps {size}")
                     if percent:
                         progress = int(percent.group(1).split(".")[0])
                         yield dict(completed=progress) if progress < 100 else dict(downloaded="Merging")
